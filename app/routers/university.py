@@ -17,6 +17,15 @@ async def get_universities(db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(University))
     return result.scalars().all()
 
+@router.get("/{uni_id}", response_model=UniversityOut)
+async def get_university(
+    uni_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    uni = await db.get(University, uni_id)
+    if not uni:
+        raise HTTPException(status_code=404, detail="University not found")
+    return uni
 
 # ---- Создание ---- (только owner)
 @router.post("/", response_model=UniversityOut)

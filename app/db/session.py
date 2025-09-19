@@ -1,7 +1,10 @@
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker, declarative_base
 
-DATABASE_URL = "sqlite+aiosqlite:///./test.db"
+# Устанавливаем драйвер asyncpg
+# pip install asyncpg
+
+DATABASE_URL = "postgresql+asyncpg://postgres:mysecretpassword@localhost:5432/booksedu"
 
 engine = create_async_engine(DATABASE_URL, echo=True, future=True)
 AsyncSessionLocal = sessionmaker(

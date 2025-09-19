@@ -1,6 +1,5 @@
 from sqlalchemy import Column, Integer, String, ForeignKey
 from sqlalchemy.orm import relationship
-
 from app.db.session import Base
 
 class Admin(Base):
@@ -13,4 +12,3 @@ class Admin(Base):
     university_id = Column(Integer, ForeignKey("universities.id"), nullable=True)
 
     university = relationship("University", back_populates="admins")
-

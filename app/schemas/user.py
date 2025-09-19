@@ -2,6 +2,9 @@ from pydantic import BaseModel, EmailStr, constr
 from enum import Enum
 from typing import Optional
 
+from app.schemas.university import UniversityOut
+
+
 class RoleEnum(str, Enum):
     superadmin = "superadmin"
     user = "user"
@@ -19,6 +22,7 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     password: constr(min_length=6)
+    university_id: Optional[int] = None
 
 
 class UserUpdate(BaseModel):
@@ -26,18 +30,20 @@ class UserUpdate(BaseModel):
     last_name: Optional[str] = None
     email: Optional[EmailStr] = None
     password: Optional[constr(min_length=6)] = None
-
+    university_id: Optional[int] = None
+    is_active: Optional[bool] = None
 
 class UserOut(UserBase):
     id: int
     role: str
+    university: Optional[UniversityOut] = None
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class UserRead(UserBase):
     id: int
     university_id: Optional[int] = None
-    class Config:
-        orm_mode = True
 
+    class Config:
+        from_attributes = True

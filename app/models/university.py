@@ -2,6 +2,7 @@ from sqlalchemy import Column, Integer, String
 from sqlalchemy.orm import relationship
 from app.db.session import Base
 
+
 class University(Base):
     __tablename__ = "universities"
 
@@ -16,3 +17,4 @@ class University(Base):
     admins = relationship("Admin", back_populates="university", cascade="all, delete-orphan")
     directions = relationship("Direction", back_populates="university", cascade="all, delete-orphan")
     kafedras = relationship("Kafedra", back_populates="university", cascade="all, delete-orphan")
+    news = relationship("News", back_populates="university", cascade="all, delete-orphan")

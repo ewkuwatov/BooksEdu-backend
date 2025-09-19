@@ -6,7 +6,7 @@ class KafedraBase(BaseModel):
     name: str
 
 class KafedraCreate(KafedraBase):
-    university_id: int
+    university_id: Optional[int] = None
 
 class KafedraUpdate(BaseModel):
     name: Optional[str] = None

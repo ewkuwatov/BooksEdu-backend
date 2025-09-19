@@ -19,6 +19,7 @@ class LiteratureBase(BaseModel):
 
 class LiteratureCreate(LiteratureBase):
     subject_id: int
+    university_id: int
 
 class LiteratureUpdate(BaseModel):
     title: Optional[str] = None

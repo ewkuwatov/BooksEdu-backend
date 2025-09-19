@@ -9,7 +9,7 @@ class Direction(Base):
     id = Column(Integer, primary_key=True, index=True)
     number = Column(String, nullable=False)
     name = Column(String, nullable=False)
-    course = Column(Integer, unique=True, nullable=False)
+    course = Column(Integer, nullable=False)
     student_count = Column(Integer, nullable=False)
 
     university_id = Column(Integer, ForeignKey("universities.id", ondelete="CASCADE"))

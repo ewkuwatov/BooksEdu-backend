@@ -5,10 +5,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from fastapi.responses import FileResponse
 import os
+from fastapi import UploadFile, File, Form
 
 
 from app.db.session import get_db
 from app.models.literature import Literature
+from app.schemas.enums import FontTypeEnum, LanguageEnum, ConditionEnum, UsageStatusEnum
 from app.schemas.literature import LiteratureCreate, LiteratureUpdate, LiteratureOut
 from app.dependencies import get_current_user
 
@@ -91,8 +93,58 @@ async def delete_literature(
     return None
 
 
+# ---- Загрузка файла ----
+@router.post("/upload", response_model=LiteratureOut)
+async def create_literature_with_file(
+    title: str = Form(...),
+    kind: str = Form(...),
+    author: str = Form(None),
+    publisher: str = Form(None),
+    language: LanguageEnum = Form(...),
+    font_type: FontTypeEnum = Form(...),
+    year: int = Form(...),
+    printed_count: int = Form(None),
+    condition: ConditionEnum = Form(...),
+    usage_status: UsageStatusEnum = Form(...),
+    subject_id: int = Form(...),
+    university_id: int = Form(...),
+    file: UploadFile = File(None),
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    file_path = None
+    if file:
+        # Абсолютный путь
+        upload_dir = os.path.join(os.getcwd(), "uploads/literatures")
+        os.makedirs(upload_dir, exist_ok=True)
+        file_path = os.path.join(upload_dir, file.filename)
+
+        with open(file_path, "wb") as f:
+            f.write(await file.read())
+
+    literature = Literature(
+        title=title,
+        kind=kind,
+        author=author,
+        publisher=publisher,
+        language=language,
+        font_type=font_type,
+        year=year,
+        printed_count=printed_count,
+        condition=condition,
+        usage_status=usage_status,
+        subject_id=subject_id,
+        university_id=university_id,
+        file_path=file_path
+    )
+    db.add(literature)
+    await db.commit()
+    await db.refresh(literature)
+    return literature
+
+# ---- Скачивание файла ----
 @router.get("/{literature_id}/download")
-async def download_literature(
+async def download_literature_file(
     literature_id: int,
     db: AsyncSession = Depends(get_db),
     current_user=Depends(get_current_user)
@@ -101,16 +153,67 @@ async def download_literature(
     if not literature or not literature.file_path:
         raise HTTPException(status_code=404, detail="File not found")
 
-    # Проверка доступа
+    if not os.path.exists(literature.file_path):
+        raise HTTPException(status_code=404, detail="File missing on server")
+
+    # Отдаём файл как FileResponse
+    filename = os.path.basename(literature.file_path)
+    return FileResponse(path=literature.file_path, filename=filename)
+
+# ---- Обновление с файлом ----
+@router.put("/upload/{literature_id}", response_model=LiteratureOut)
+async def update_literature_with_file(
+    literature_id: int,
+    title: str = Form(...),
+    kind: str = Form(...),
+    author: str = Form(None),
+    publisher: str = Form(None),
+    language: LanguageEnum = Form(...),
+    font_type: FontTypeEnum = Form(...),
+    year: int = Form(...),
+    printed_count: int = Form(None),
+    condition: ConditionEnum = Form(...),
+    usage_status: UsageStatusEnum = Form(...),
+    subject_id: int = Form(...),
+    university_id: int = Form(...),
+    file: UploadFile = File(None),
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    literature = await db.get(Literature, literature_id)
+    if not literature:
+        raise HTTPException(status_code=404, detail="Literature not found")
+
     if current_user.role == "superadmin" and literature.university_id != current_user.university_id:
         raise HTTPException(status_code=403, detail="Not your university")
     if current_user.role not in ("owner", "superadmin"):
         raise HTTPException(status_code=403, detail="Not allowed")
 
-    # Проверка существования файла на сервере
-    if not os.path.exists(literature.file_path):
-        raise HTTPException(status_code=404, detail="File missing on server")
+    # если пришёл новый файл — перезаписываем
+    if file:
+        upload_dir = os.path.join(os.getcwd(), "uploads/literatures")
+        os.makedirs(upload_dir, exist_ok=True)
+        file_path = os.path.join(upload_dir, file.filename)
 
-    # Отдаём файл
-    filename = os.path.basename(literature.file_path)
-    return FileResponse(path=literature.file_path, filename=filename)
+        with open(file_path, "wb") as f:
+            f.write(await file.read())
+
+        literature.file_path = file_path
+
+    # обновляем остальные поля
+    literature.title = title
+    literature.kind = kind
+    literature.author = author
+    literature.publisher = publisher
+    literature.language = language
+    literature.font_type = font_type
+    literature.year = year
+    literature.printed_count = printed_count
+    literature.condition = condition
+    literature.usage_status = usage_status
+    literature.subject_id = subject_id
+    literature.university_id = university_id
+
+    await db.commit()
+    await db.refresh(literature)
+    return literature

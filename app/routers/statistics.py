@@ -72,7 +72,8 @@ async def export_statistics(
 
         # Собираем все строки сначала
         rows = []
-        for direction in uni.directions:
+        # сортируем направления по course (1 → 2 → 3 → 4)
+        for direction in sorted(uni.directions, key=lambda d: d.course or 0):
             for subject in direction.subjects:
                 for lit in subject.literature:
                     electron_status = "available" if lit.file_path else ""

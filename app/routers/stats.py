@@ -18,7 +18,7 @@ async def owner_universities_stats(
         current_user=Depends(get_current_user)
 ):
     # Ограничиваем доступ только для owner или superadmin
-    if current_user.role not in ("owner", "superadmin"):
+    if current_user.role not in ("owner", "superadmin", "user"):
         return {"detail": "Not allowed"}
 
     # Получаем список университетов в зависимости от роли
@@ -54,9 +54,9 @@ async def owner_universities_stats(
         )
         total_subjects = subject_result.scalar() or 0
 
-        # Количество литературы
+        # Сумма printed_count в литературе
         literature_result = await db.execute(
-            select(func.count(Literature.id))
+            select(func.coalesce(func.sum(Literature.printed_count), 0))
             .where(Literature.university_id == uni.id)
         )
         total_literature = literature_result.scalar() or 0
