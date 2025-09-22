@@ -9,7 +9,7 @@ from app.models.user import User
 from app.models.admin import Admin
 from app.core.config import settings
 
-# ✅ объявляем здесь, а не в settings
+# access-токен всегда в Authorization: Bearer ...
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
 
@@ -18,20 +18,20 @@ async def get_user_by_email(db: AsyncSession, email: str):
     admin = result.scalars().first()
     if admin:
         return admin
+
     result = await db.execute(select(User).where(User.email == email))
     return result.scalars().first()
 
 
+# -------- ACCESS --------
 async def get_current_user(
-    refresh_token: str = Cookie(None), db: AsyncSession = Depends(get_db)
+    token: str = Depends(oauth2_scheme),
+    db: AsyncSession = Depends(get_db),
 ):
-    if not refresh_token:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated"
-        )
+    """Проверка access-токена"""
     try:
         payload = jwt.decode(
-            refresh_token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
+            token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
         )
         email: str = payload.get("sub")
         if email is None:
@@ -48,38 +48,41 @@ async def get_current_user(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found"
         )
-    # Проверка только для User, а не Admin
+
     if isinstance(user, User) and not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="User is inactive"
         )
+
     return user
 
 
-async def get_current_admin(
+# -------- REFRESH --------
+async def get_refresh_user(
+    refresh_token: str = Cookie(None),
     db: AsyncSession = Depends(get_db),
-    token: str = Depends(oauth2_scheme),   # ✅ теперь используем наш локальный oauth2_scheme
-) -> Admin:
+):
+    """Проверка refresh-токена (в cookie)"""
+    if not refresh_token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="No refresh token"
+        )
+
     try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-        admin_id: int = payload.get("sub")
-        if admin_id is None:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token"
-            )
+        payload = jwt.decode(
+            refresh_token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
+        )
+        email: str = payload.get("sub")
+        if not email:
+            raise HTTPException(status_code=401, detail="Invalid refresh token")
     except JWTError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token"
-        )
+        raise HTTPException(status_code=401, detail="Invalid refresh token")
 
-    query = await db.execute(select(Admin).where(Admin.id == admin_id))
-    admin = query.scalar_one_or_none()
-    if admin is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Admin not found"
-        )
+    user = await get_user_by_email(db, email)
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
 
-    return admin
+    return user
 
 
 # ---- Roles ----
