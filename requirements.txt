@@ -7,3 +7,4 @@ gunicorn
 pydantic-settings
 aiosqlite
 python-jose[cryptography]
+pydantic[email]
