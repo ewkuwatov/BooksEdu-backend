@@ -9,3 +9,4 @@ aiosqlite
 python-jose[cryptography]
 pydantic[email]
 passlib[bcrypt]
+python-multipart
