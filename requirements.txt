@@ -10,3 +10,4 @@ python-jose[cryptography]
 pydantic[email]
 passlib[bcrypt]
 python-multipart
+openpyxl
