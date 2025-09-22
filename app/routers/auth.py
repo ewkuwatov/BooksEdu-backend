@@ -79,8 +79,8 @@ async def login(
         key="refresh_token",
         value=refresh_token,
         httponly=True,
-        secure=False,  # True на проде
-        samesite="lax",
+        secure=True,
+        samesite="none",
         max_age=60 * 60 * 24 * 7,
     )
 
@@ -144,8 +144,8 @@ async def refresh_token(response: Response, refresh_token: str = Cookie(None)):
             key="refresh_token",
             value=new_refresh_token,
             httponly=True,
-            secure=False,  # True на проде
-            samesite="lax",
+            secure=True,
+            samesite="none",
             max_age=60 * 60 * 24 * 7,
         )
 
