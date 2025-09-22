@@ -6,3 +6,4 @@ python-dotenv
 gunicorn
 pydantic-settings
 aiosqlite
+python-jose[cryptography]
