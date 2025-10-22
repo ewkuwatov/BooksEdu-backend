@@ -1,11 +1,11 @@
 fastapi
 uvicorn[standard]
-sqlalchemy
+sqlalchemy[asyncio]
 asyncpg
+psycopg2-binary
 python-dotenv
 gunicorn
 pydantic-settings
-aiosqlite
 python-jose[cryptography]
 pydantic[email]
 passlib[bcrypt]

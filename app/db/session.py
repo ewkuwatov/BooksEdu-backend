@@ -2,7 +2,7 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker, declarative_base
 from app.core.config import settings
 
-# Создаем асинхронный движок для PostgreSQL
+# Создаем асинхронный движок PostgreSQL
 engine = create_async_engine(settings.DATABASE_URL, echo=True, future=True)
 
 AsyncSessionLocal = sessionmaker(
@@ -13,7 +13,7 @@ AsyncSessionLocal = sessionmaker(
 
 Base = declarative_base()
 
-# Асинхронная сессия для зависимостей FastAPI
+# Асинхронная зависимость для FastAPI
 async def get_db():
     async with AsyncSessionLocal() as session:
         yield session
