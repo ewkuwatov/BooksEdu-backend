@@ -2,14 +2,23 @@ from datetime import datetime, timedelta
 from jose import jwt
 from passlib.context import CryptContext
 from app.core.config import settings
+import hashlib
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
+def _normalize_password(password: str) -> str:
+    """
+    bcrypt ограничен длиной пароля 72 байта.
+    Поэтому мы сначала хешируем пароль SHA256 → он всегда 64 символа.
+    Это стандартная практика bcrypt-sha256.
+    """
+    return hashlib.sha256(password.encode("utf-8")).hexdigest()
+
 def verify_password(plain_password, hashed_password):
-    return pwd_context.verify(plain_password, hashed_password)
+    return pwd_context.verify(_normalize_password(plain_password), hashed_password)
 
 def get_password_hash(password):
-    return pwd_context.hash(password)
+    return pwd_context.hash(_normalize_password(password))
 
 def create_access_token(data: dict, expires_delta: int = None):
     to_encode = data.copy()

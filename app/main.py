@@ -15,7 +15,10 @@ app.add_middleware(
     allow_origins=[
         "http://127.0.0.1:5173",
         "http://localhost:5173",
-        "https://booksedu.netlify.app",
+        "https://booksedu.uz",       # если фронтенд будет тут
+        "https://www.booksedu.uz",
+        "https://bookedu.uz",        # бекенд домен ДОЛЖЕН быть разрешён
+        "https://www.bookedu.uz",
     ],
     allow_credentials=True,
     allow_methods=["*"],

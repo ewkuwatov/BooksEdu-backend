@@ -21,7 +21,7 @@ class UserBase(BaseModel):
 
 
 class UserCreate(UserBase):
-    password: constr(min_length=6)
+    password: constr(min_length=6, max_length=72)
     university_id: Optional[int] = None
 
 

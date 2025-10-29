@@ -14,12 +14,14 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
 
 async def get_user_by_email(db: AsyncSession, email: str):
-    result = await db.execute(select(Admin).where(Admin.email == email))
-    admin = result.scalars().first()
-    if admin:
-        return admin
-
+    # Сначала ищем в users
     result = await db.execute(select(User).where(User.email == email))
+    user = result.scalars().first()
+    if user:
+        return user
+
+    # Потом ищем в admins
+    result = await db.execute(select(Admin).where(Admin.email == email))
     return result.scalars().first()
 
 
