@@ -8,6 +8,39 @@ from sqlalchemy.future import select
 
 router = APIRouter(prefix="/users", tags=["users"])
 
+# --- получить всех пользователей (только owner) ---
+@router.get("/", response_model=list[UserOut])
+async def get_all_users(
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(require_owner)
+):
+    result = await db.execute(select(User))
+    users = result.scalars().all()
+    return users
+
+
+# --- получить профиль: 
+# user → только свой 
+# owner → любой
+@router.get("/{user_id}", response_model=UserOut)
+async def get_user_by_id(
+    user_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(require_user)
+):
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalars().first()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Если обычный user → может смотреть только своё
+    if current_user.role == "user" and current_user.id != user_id:
+        raise HTTPException(status_code=403, detail="Not enough permissions")
+
+    return user
+
+
 @router.put("/me")
 async def update_me(
     user_data: UserUpdate,

@@ -80,6 +80,8 @@ async def login(
         value=refresh_token,
         httponly=True,
         secure=True,
+	domain=".bookedu.uz",
+	path="/",
         samesite="none",
         max_age=60 * 60 * 24 * 7,
     )
@@ -98,7 +100,13 @@ async def login(
 # ------------------------------
 @router.post("/logout")
 def logout(response: Response):
-    response.delete_cookie("refresh_token")
+    response.delete_cookie(
+    	key="refresh_token",
+    	domain=".bookedu.uz",   # ← ВАЖНО
+    	httponly=True,
+    	secure=True,
+    	samesite="none",
+    )
     return {"msg": "Logged out"}
 
 
@@ -146,6 +154,8 @@ async def refresh_token(response: Response, refresh_token: str = Cookie(None)):
             httponly=True,
             secure=True,
             samesite="none",
+	    domain=".bookedu.uz",
+   	    path="/",
             max_age=60 * 60 * 24 * 7,
         )
 

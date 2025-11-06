@@ -14,7 +14,7 @@ class KafedraUpdate(BaseModel):
 
 class KafedraOut(KafedraBase):
     id: int
-    university_id: int
+    university_id: Optional[int] = None
 
     class Config:
         from_attributes = True

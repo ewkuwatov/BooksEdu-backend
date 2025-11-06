@@ -13,8 +13,12 @@ app = FastAPI(title="BooksEdu API")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
+    	"https://panel.bookedu.local:5174",
+    	"http://panel.bookedu.local:5174",
+	"http://localhost:5173",
         "http://127.0.0.1:5173",
-        "http://localhost:5173",
+        "https://127.0.0.1:5173",
+        "https://localhost:5173",
         "https://booksedu.uz",       # если фронтенд будет тут
         "https://www.booksedu.uz",
         "https://bookedu.uz",        # бекенд домен ДОЛЖЕН быть разрешён

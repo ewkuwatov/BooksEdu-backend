@@ -38,17 +38,19 @@ async def create_direction(
     else:
         raise HTTPException(status_code=403, detail="Not allowed")
 
-    # проверка уникальности course внутри конкретного университета
+    # ✅ проверка уникальности комбинации внутри университета
     result = await db.execute(
         select(Direction).where(
-            Direction.course == data.course,
-            Direction.university_id == data.university_id
+            Direction.university_id == data.university_id,
+            Direction.number == data.number,
+            Direction.name == data.name,
+            Direction.course == data.course
         )
     )
     if result.scalars().first():
         raise HTTPException(
             status_code=400,
-            detail=f"Direction with course {data.course} already exists in this university"
+            detail="Direction with this number, name and course already exists in this university"
         )
 
     direction = Direction(**data.model_dump())
@@ -78,7 +80,34 @@ async def update_direction(
     if current_user.role not in ("owner", "superadmin"):
         raise HTTPException(status_code=403, detail="Not allowed")
 
-    for field, value in data.model_dump(exclude_unset=True).items():
+    # ✅ преобразуем данные обновления
+    update_data = data.model_dump(exclude_unset=True)
+
+    # получаем новые значения (если переданы)
+    new_number = update_data.get("number", direction.number)
+    new_name = update_data.get("name", direction.name)
+    new_course = update_data.get("course", direction.course)
+    new_university_id = update_data.get("university_id", direction.university_id)
+
+    # ✅ проверка уникальности новой комбинации
+    result = await db.execute(
+        select(Direction).where(
+            Direction.id != direction_id,
+            Direction.university_id == new_university_id,
+            Direction.number == new_number,
+            Direction.name == new_name,
+            Direction.course == new_course
+        )
+    )
+
+    if result.scalars().first():
+        raise HTTPException(
+            status_code=400,
+            detail="Direction with this number, name and course already exists in this university"
+        )
+
+    # ✅ применяем изменения
+    for field, value in update_data.items():
         setattr(direction, field, value)
 
     await db.commit()
