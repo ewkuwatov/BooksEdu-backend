@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Response, Cookie
 from sqlalchemy.ext.asyncio import AsyncSession
 from jose import jwt, JWTError
+from sqlalchemy import select
 
 from app.core.config import settings
 from app.schemas.auth import UserRegister, UserLogin
@@ -46,42 +47,52 @@ async def register_user(user_data: UserRegister, db: AsyncSession = Depends(get_
 # ------------------------------
 @router.post("/login")
 async def login(
-    form_data: UserLogin, response: Response, db: AsyncSession = Depends(get_db)
+    form_data: UserLogin,
+    response: Response,
+    db: AsyncSession = Depends(get_db),
 ):
-    user = await get_user_by_email(db, form_data.email)
-    if not user or not verify_password(form_data.password, user.hashed_password):
+    # 1️⃣ ищем в admins
+    result = await db.execute(
+        select(Admin).where(Admin.email == form_data.email)
+    )
+    account = result.scalar_one_or_none()
+    account_type = "admin"
+
+    # 2️⃣ если не нашли — ищем в users
+    if not account:
+        result = await db.execute(
+            select(User).where(User.email == form_data.email)
+        )
+        account = result.scalar_one_or_none()
+        account_type = "user"
+
+    if not account or not verify_password(
+        form_data.password, account.hashed_password
+    ):
         raise HTTPException(status_code=400, detail="Incorrect email or password")
 
-    role = getattr(user, "role", "user")
-    university_id = getattr(user, "university_id", None)
+    role = getattr(account, "role", "user")
+    university_id = getattr(account, "university_id", None)
 
-    access_token = create_access_token(
-        {
-            "sub": user.email,
-            "role": role,
-            "user_id": user.id,
-            "university_id": university_id,
-            "type": "access",
-        }
-    )
-    refresh_token = create_refresh_token(
-        {
-            "sub": user.email,
-            "role": role,
-            "user_id": user.id,
-            "university_id": university_id,
-            "type": "refresh",
-        }
-    )
+    payload = {
+        "sub": account.email,
+        "role": role,
+        "user_id": account.id,
+        "university_id": university_id,
+        "account_type": account_type,
+        "type": "access",
+    }
 
-    # refresh кладём в HttpOnly cookie
+    access_token = create_access_token(payload)
+    refresh_token = create_refresh_token({**payload, "type": "refresh"})
+
     response.set_cookie(
         key="refresh_token",
         value=refresh_token,
         httponly=True,
         secure=True,
-	domain=".bookedu.uz",
-	path="/",
+        domain=".bookedu.uz",
+        path="/",
         samesite="none",
         max_age=60 * 60 * 24 * 7,
     )
@@ -90,10 +101,10 @@ async def login(
         "access_token": access_token,
         "token_type": "bearer",
         "role": role,
-        "email": user.email,
+        "email": account.email,
         "university_id": university_id,
+        "account_type": account_type,
     }
-
 
 # ------------------------------
 # Логаут

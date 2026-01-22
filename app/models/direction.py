@@ -14,7 +14,7 @@ class Direction(Base):
     number = Column(String, nullable=False)
     name = Column(String, nullable=False)
     course = Column(Integer, nullable=False)
-    student_count = Column(Integer, nullable=False)
+    student_count = Column(Integer, nullable=True)
 
     university_id = Column(Integer, ForeignKey("universities.id", ondelete="CASCADE"))
     university = relationship("University", back_populates="directions")

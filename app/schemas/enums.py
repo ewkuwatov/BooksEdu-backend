@@ -1,27 +1,23 @@
 from enum import Enum
 
 class LanguageEnum(str, Enum):
-    uzbek = "uzbek"
-    russian = "russian"
-    karakalpak = "karakalpak"
-    english = "english"
+    uzbek = "o'zbek"
+    russian = "rus"
+    karakalpak = "qoraqolpoq"
+    english = "ingliz"
+
 
 class FontTypeEnum(str, Enum):
     kirill = "kirill"
-    latin = "latin"
-    english = "english"
+    latin = "lotin"
+    english = "ingliz"
 
-# Генерируем Enum автоматически
-YearEnum = Enum(
-    "YearEnum",
-    {f"y{year}": year for year in range(1991, 2026)},
-    type=int,
-)
 
 class ConditionEnum(str, Enum):
-    actual = "actual"
-    unactual = "unactual"
+    actual = "Zamon talabiga mos"
+    unactual = "Zamon talabiga mos emas"
+
 
 class UsageStatusEnum(str, Enum):
-    use = "use"
-    unused = "unused"
+    use = "Fan dasturida foydalaniladi"
+    unused = "Fan dasturida foydalanilmaydi"

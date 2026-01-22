@@ -6,7 +6,7 @@ class DirectionBase(BaseModel):
     number: str
     name: str
     course: int
-    student_count: int
+    student_count: Optional[int] = None  # ✔
 
 class DirectionCreate(DirectionBase):
     university_id: Optional[int] = None

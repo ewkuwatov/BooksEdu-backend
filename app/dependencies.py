@@ -30,34 +30,35 @@ async def get_current_user(
     token: str = Depends(oauth2_scheme),
     db: AsyncSession = Depends(get_db),
 ):
-    """Проверка access-токена"""
     try:
         payload = jwt.decode(
             token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
         )
         email: str = payload.get("sub")
-        if email is None:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token"
-            )
+        role: str = payload.get("role")
+        if not email or not role:
+            raise HTTPException(status_code=401, detail="Invalid token")
     except JWTError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token"
-        )
+        raise HTTPException(status_code=401, detail="Invalid token")
 
-    user = await get_user_by_email(db, email)
+    # 🔥 если admin / owner → ищем ТОЛЬКО в admins
+    if role in ("owner", "superadmin", "admin"):
+        result = await db.execute(select(Admin).where(Admin.email == email))
+        admin = result.scalars().first()
+        if not admin:
+            raise HTTPException(status_code=401, detail="Admin not found")
+        return admin
+
+    # иначе → обычный user
+    result = await db.execute(select(User).where(User.email == email))
+    user = result.scalars().first()
     if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found"
-        )
+        raise HTTPException(status_code=401, detail="User not found")
 
-    if isinstance(user, User) and not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="User is inactive"
-        )
+    if not user.is_active:
+        raise HTTPException(status_code=403, detail="User is inactive")
 
     return user
-
 
 # -------- REFRESH --------
 async def get_refresh_user(
