@@ -1,195 +1,251 @@
 from fastapi import APIRouter, Depends
-from openpyxl.workbook import Workbook
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from sqlalchemy.orm import selectinload
+from fastapi.responses import StreamingResponse
+from openpyxl import Workbook
+from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
+from io import BytesIO
+
 from app.db.session import get_db
 from app.models.university import University
 from app.models.direction import Direction
 from app.models.subject import Subject
-from app.models.literature import Literature
 from app.dependencies import require_owner_or_superadmin
-from sqlalchemy.orm import selectinload
-from fastapi.responses import StreamingResponse
-from io import BytesIO
-from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 
 
 router = APIRouter(prefix="/statistics", tags=["statistics"])
 
 
+# ================= STYLES =================
+header_fill = PatternFill("solid", fgColor="305496")
+header_font = Font(bold=True, color="FFFFFF")
+title_font = Font(size=15, bold=True)
+
+CENTER = Alignment(horizontal="center", vertical="center", wrap_text=True)
+
+border = Border(
+    left=Side(style="thin"),
+    right=Side(style="thin"),
+    top=Side(style="thin"),
+    bottom=Side(style="thin"),
+)
+
+
+# ================= HELPERS =================
+def calc_row_height(text: str, base=32, per_line=18):
+    if not text:
+        return base
+    return base + (text.count("\n")) * per_line
+
+
+def apply_column_widths(ws):
+    widths = {
+        1: 6,
+        2: 70,
+        3: 16,
+        4: 30,
+        5: 45,
+        6: 22,
+        7: 30,
+        8: 26,
+        9: 12,
+        10: 12,
+        11: 10,
+        12: 14,
+        13: 22,
+        14: 18
+    }
+
+    for col, width in widths.items():
+        ws.column_dimensions[chr(64 + col)].width = width
+
+
+# ================= RENDER =================
+def render_university(ws, uni, start_row=1):
+    row = int(start_row)
+
+    # ===== TITLE =====
+    ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=14)
+    ws.cell(row, 1).value = uni.name
+    ws.cell(row, 1).font = title_font
+    ws.cell(row, 1).alignment = CENTER
+    row += 2
+
+    # ================= HEADER (2 LEVEL) =================
+    # Верхний уровень
+    ws.merge_cells(start_row=row, start_column=12, end_row=row, end_column=13)
+    ws.cell(row, 12).value = "ARMda mavjud shakli"
+    ws.cell(row, 12).font = header_font
+    ws.cell(row, 12).alignment = CENTER
+    ws.cell(row, 12).fill = header_fill
+    ws.cell(row, 12).border = border
+
+    top_headers = [
+        "№",
+        "Мutaxassislik shifri va nomi",
+        "Talabalar soni (kurslar bo'yicha)",
+        "O‘quv rejadagi fan nomi",
+        "Fan dasturiga kiritilgan o‘quv adabiyotlari nomi",
+        "O‘quv adabiyot turi",
+        "Muallif(lar) F.I.Sh",
+        "Nashriyoti",
+        "Adabiyot tili",
+        "Yozuvi (Kiril yoki lotin)",
+        "Nashr etilgan yili"
+    ]
+
+    for col, text in enumerate(top_headers, 1):
+        cell = ws.cell(row, col, text)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = CENTER
+        cell.border = border
+
+    ws.cell(row, 14).value = "Har bir fan bo‘yicha ta’minlanganlik (% da)"
+    ws.cell(row, 14).font = header_font
+    ws.cell(row, 14).fill = header_fill
+    ws.cell(row, 14).alignment = CENTER
+    ws.cell(row, 14).border = border
+
+    # Второй уровень
+    row += 1
+
+    sub_headers = [
+        "", "", "", "", "", "", "", "", "", "", "",
+        "Elektron",
+        "Bosma (mixatda ko‘rsatiladi)",
+        ""
+    ]
+
+    for col, text in enumerate(sub_headers, 1):
+        cell = ws.cell(row, col, text)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = CENTER
+        cell.border = border
+
+    # объединяем вертикально
+    for col in range(1, 12):
+        ws.merge_cells(start_row=row - 1, end_row=row, start_column=col, end_column=col)
+
+    ws.merge_cells(start_row=row - 1, end_row=row, start_column=14, end_column=14)
+
+    row += 1
+
+    # ================= DATA =================
+    subject_map = {}
+
+    for d in uni.directions:
+        for s in d.subjects:
+            subject_map.setdefault(s.id, {
+                "subject": s.name,
+                "directions": set(),
+                "students": 0,
+                "literature": {}
+            })
+
+            block = subject_map[s.id]
+            block["directions"].add(
+                f"{d.number} - {d.name} ({d.course}-kurs)"
+            )
+            block["students"] += d.student_count or 0
+
+            for l in s.literature:
+                block["literature"][l.id] = l
+
+    index = 1
+
+    for block in subject_map.values():
+        start = row
+        directions = "\n".join(sorted(block["directions"]))
+
+        for i, lit in enumerate(block["literature"].values()):
+            percent = 100 if lit.file_path else min(
+                int((lit.printed_count or 0) * 6 / max(block["students"], 1) * 100),
+                100
+            )
+
+            ws.append([
+                index if i == 0 else "",
+                directions if i == 0 else "",
+                block["students"] if i == 0 else "",
+                block["subject"] if i == 0 else "",
+                lit.title,
+                lit.kind,
+                lit.author or "",
+                lit.publisher or "",
+                lit.language,
+                lit.font_type,
+                lit.year,
+                "Mavjud" if lit.file_path else "",
+                lit.printed_count or 0,
+                f"{percent}%"
+            ])
+
+            for c in range(1, 15):
+                ws.cell(row, c).alignment = CENTER
+                ws.cell(row, c).border = border
+
+            ws.row_dimensions[row].height = max(
+                35,
+                calc_row_height(directions) if i == 0 else 35
+            )
+
+            row += 1
+
+        for col in [1, 2, 3, 4]:
+            ws.merge_cells(
+                start_row=start,
+                end_row=row - 1,
+                start_column=col,
+                end_column=col
+            )
+
+        index += 1
+
+    apply_column_widths(ws)
+
+    # ===== PAGE SETTINGS =====
+    ws.page_setup.orientation = ws.ORIENTATION_LANDSCAPE
+    ws.page_setup.fitToWidth = 1
+    ws.page_setup.fitToHeight = False
+    ws.sheet_view.zoomScale = 80
+
+    return row + 2
+
+
+# ================= ALL UNIVERSITIES =================
+def render_all_universities(ws, universities):
+    row = 1
+    for uni in universities:
+        row = render_university(ws, uni, start_row=row)
+
+
+# ================= ROUTE =================
 @router.get("/export")
 async def export_statistics(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(require_owner_or_superadmin)
 ):
-    # ================================
-    # Загрузка данных
-    # ================================
-    query = (
-        select(University)
-        .options(
-            selectinload(University.directions)
-            .selectinload(Direction.subjects)
-            .selectinload(Subject.literature)
-        )
+    query = select(University).options(
+        selectinload(University.directions)
+        .selectinload(Direction.subjects)
+        .selectinload(Subject.literature)
     )
 
-    if current_user.role == "superadmin":
-        query = query.where(University.id == current_user.university_id)
-
-    result = await db.execute(query)
-    universities = result.scalars().all()
+    universities = (await db.execute(query)).scalars().all()
 
     wb = Workbook()
-    first_sheet = True
+
+    ws_all = wb.active
+    ws_all.title = "Umumiy"
+    render_all_universities(ws_all, universities)
 
     for uni in universities:
-        ws = wb.active if first_sheet else wb.create_sheet(title=uni.name)
-        ws.title = uni.name
-        first_sheet = False
+        ws = wb.create_sheet(title=uni.name[:31])
+        render_university(ws, uni)
 
-        # ================================
-        # Excel настройки
-        # ================================
-        ws.page_setup.orientation = ws.ORIENTATION_LANDSCAPE
-        ws.page_setup.fitToWidth = 1
-        ws.page_setup.fitToHeight = 1
-        ws.sheet_view.zoomScale = 75
-
-        # ================================
-        # Заголовки
-        # ================================
-        headers = [
-            "Mutaxassislik shifri",
-            "Yo'nalish",
-            "Talabalar soni",
-            "Fan nomi",
-            "Adabiyot nomi",
-            "Turi",
-            "Muallif",
-            "Nashriyot",
-            "Til",
-            "Yozuvi",
-            "Yili",
-            "Bosma",
-            "Elektron",
-            "Ta’minlanganlik %"
-        ]
-
-        headers = ["\n".join(h.split()) for h in headers]
-        ws.append(headers)
-
-        # ================================
-        # Стили
-        # ================================
-        header_font = Font(bold=True, color="FFFFFF")
-        header_fill = PatternFill("solid", fgColor="4F81BD")
-        align = Alignment(horizontal="center", vertical="center", wrap_text=True)
-        border = Border(
-            left=Side(style="thin"),
-            right=Side(style="thin"),
-            top=Side(style="thin"),
-            bottom=Side(style="thin")
-        )
-
-        # ================================
-        # Сбор данных
-        # ================================
-        direction_students = {
-            d.number: d.student_count or 0 for d in uni.directions
-        }
-
-        rows = []
-        unique = set()
-
-        for direction in uni.directions:
-            total = direction_students[direction.number]
-
-            for subject in direction.subjects:
-                for lit in subject.literature:
-                    percent = 100 if lit.file_path else min(
-                        int((lit.printed_count or 0) * 6 / max(total, 1) * 100),
-                        100
-                    )
-
-                    key = (lit.title, lit.author, lit.publisher, lit.year, percent)
-                    if key in unique:
-                        continue
-                    unique.add(key)
-
-                    rows.append([
-                        direction.number,
-                        direction.name,
-                        total,
-                        subject.name,
-                        lit.title,
-                        lit.kind,
-                        lit.author or "",
-                        lit.publisher or "",
-                        getattr(lit.language, "value", lit.language),
-                        getattr(lit.font_type, "value", lit.font_type),
-                        lit.year,
-                        lit.printed_count or 0,
-                        "✓" if lit.file_path else "",
-                        f"{percent}%"
-                    ])
-
-        rows.sort(key=lambda x: (x[1], x[3]))
-
-        for row in rows:
-            ws.append(row)
-
-        # ================================
-        # MERGE (исправленный)
-        # ================================
-        merge_cols = [1, 2, 3, 4]
-        last_vals = [None] * len(merge_cols)
-        start_rows = [2] * len(merge_cols)
-
-        for i, row in enumerate(rows, start=2):
-            for idx, col in enumerate(merge_cols):
-                if last_vals[idx] != row[col - 1]:
-                    if i - 1 > start_rows[idx]:
-                        ws.merge_cells(
-                            start_row=start_rows[idx],
-                            end_row=i - 1,
-                            start_column=col,
-                            end_column=col
-                        )
-                    last_vals[idx] = row[col - 1]
-                    start_rows[idx] = i
-
-        last_row = len(rows) + 1
-        for idx, col in enumerate(merge_cols):
-            if last_row > start_rows[idx]:
-                ws.merge_cells(
-                    start_row=start_rows[idx],
-                    end_row=last_row,
-                    start_column=col,
-                    end_column=col
-                )
-
-        # ================================
-        # Размеры и стили
-        # ================================
-        for col in ws.columns:
-            length = max(len(str(c.value)) if c.value else 0 for c in col)
-            ws.column_dimensions[col[0].column_letter].width = min(length + 2, 30)
-
-        for row in ws.iter_rows(min_row=1, max_row=ws.max_row):
-            ws.row_dimensions[row[0].row].height = 35
-            for cell in row:
-                cell.alignment = align
-                cell.border = border
-
-        for col in range(1, len(headers) + 1):
-            cell = ws.cell(row=1, column=col)
-            cell.font = header_font
-            cell.fill = header_fill
-
-    # ================================
-    # Ответ
-    # ================================
     stream = BytesIO()
     wb.save(stream)
     stream.seek(0)
@@ -197,8 +253,6 @@ async def export_statistics(
     return StreamingResponse(
         stream,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={
-            "Content-Disposition": "attachment; filename=statistics.xlsx",
-            "Access-Control-Expose-Headers": "Content-Disposition"
-        }
+        headers={"Content-Disposition": "attachment; filename=statistics.xlsx"}
     )
+
