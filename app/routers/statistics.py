@@ -36,7 +36,7 @@ border = Border(
 def calc_row_height(text: str, base=32, per_line=18):
     if not text:
         return base
-    return base + (text.count("\n")) * per_line
+    return base + text.count("\n") * per_line
 
 
 def apply_column_widths(ws):
@@ -72,8 +72,7 @@ def render_university(ws, uni, start_row=1):
     ws.cell(row, 1).alignment = CENTER
     row += 2
 
-    # ================= HEADER (2 LEVEL) =================
-    # Верхний уровень
+    # ===== HEADER =====
     ws.merge_cells(start_row=row, start_column=12, end_row=row, end_column=13)
     ws.cell(row, 12).value = "ARMda mavjud shakli"
     ws.cell(row, 12).font = header_font
@@ -84,15 +83,15 @@ def render_university(ws, uni, start_row=1):
     top_headers = [
         "№",
         "Мutaxassislik shifri va nomi",
-        "Talabalar soni (kurslar bo'yicha)",
-        "O‘quv rejadagi fan nomi",
-        "Fan dasturiga kiritilgan o‘quv adabiyotlari nomi",
-        "O‘quv adabiyot turi",
-        "Muallif(lar) F.I.Sh",
-        "Nashriyoti",
-        "Adabiyot tili",
-        "Yozuvi (Kiril yoki lotin)",
-        "Nashr etilgan yili"
+        "Talabalar soni",
+        "Fan nomi",
+        "Adabiyot nomi",
+        "Turi",
+        "Muallif",
+        "Nashriyot",
+        "Til",
+        "Yozuvi",
+        "Yili",
     ]
 
     for col, text in enumerate(top_headers, 1):
@@ -102,21 +101,15 @@ def render_university(ws, uni, start_row=1):
         cell.alignment = CENTER
         cell.border = border
 
-    ws.cell(row, 14).value = "Har bir fan bo‘yicha ta’minlanganlik (% da)"
+    ws.cell(row, 14).value = "Ta’minlanganlik %"
     ws.cell(row, 14).font = header_font
     ws.cell(row, 14).fill = header_fill
     ws.cell(row, 14).alignment = CENTER
     ws.cell(row, 14).border = border
 
-    # Второй уровень
     row += 1
 
-    sub_headers = [
-        "", "", "", "", "", "", "", "", "", "", "",
-        "Elektron",
-        "Bosma (mixatda ko‘rsatiladi)",
-        ""
-    ]
+    sub_headers = [""] * 11 + ["Elektron", "Bosma", ""]
 
     for col, text in enumerate(sub_headers, 1):
         cell = ws.cell(row, col, text)
@@ -125,7 +118,6 @@ def render_university(ws, uni, start_row=1):
         cell.alignment = CENTER
         cell.border = border
 
-    # объединяем вертикально
     for col in range(1, 12):
         ws.merge_cells(start_row=row - 1, end_row=row, start_column=col, end_column=col)
 
@@ -146,9 +138,7 @@ def render_university(ws, uni, start_row=1):
             })
 
             block = subject_map[s.id]
-            block["directions"].add(
-                f"{d.number} - {d.name} ({d.course}-kurs)"
-            )
+            block["directions"].add(f"{d.number} - {d.name} ({d.course}-kurs)")
             block["students"] += d.student_count or 0
 
             for l in s.literature:
@@ -194,22 +184,22 @@ def render_university(ws, uni, start_row=1):
 
             row += 1
 
-        for col in [1, 2, 3, 4]:
-            ws.merge_cells(
-                start_row=start,
-                end_row=row - 1,
-                start_column=col,
-                end_column=col
-            )
+        # 🔥 FIX — защита от row < start
+        if row - 1 >= start:
+            for col in [1, 2, 3, 4]:
+                ws.merge_cells(
+                    start_row=start,
+                    end_row=row - 1,
+                    start_column=col,
+                    end_column=col
+                )
 
         index += 1
 
     apply_column_widths(ws)
 
-    # ===== PAGE SETTINGS =====
     ws.page_setup.orientation = ws.ORIENTATION_LANDSCAPE
     ws.page_setup.fitToWidth = 1
-    ws.page_setup.fitToHeight = False
     ws.sheet_view.zoomScale = 80
 
     return row + 2
@@ -237,9 +227,9 @@ async def export_statistics(
     universities = (await db.execute(query)).scalars().all()
 
     wb = Workbook()
-
     ws_all = wb.active
     ws_all.title = "Umumiy"
+
     render_all_universities(ws_all, universities)
 
     for uni in universities:
@@ -255,4 +245,3 @@ async def export_statistics(
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": "attachment; filename=statistics.xlsx"}
     )
-
