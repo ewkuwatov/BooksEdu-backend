@@ -171,6 +171,7 @@ def render_university(ws, uni, start_row=1):
                 "Mavjud" if lit.file_path else "",
                 lit.printed_count or 0,
                 f"{percent}%"
+                "Mavjud" if lit.file_path_2 else "",
             ])
 
             for c in range(1, 15):

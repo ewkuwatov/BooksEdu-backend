@@ -16,6 +16,7 @@ class LiteratureBase(BaseModel):
     printed_count: Optional[int] = None
     image: Optional[str] = None
     file_path: Optional[str] = None
+    file_path_2: Optional[str] = None
 
 
 class LiteratureCreate(LiteratureBase):
@@ -37,6 +38,7 @@ class LiteratureUpdate(BaseModel):
     printed_count: Optional[int] = None
     image: Optional[str] = None
     file_path: Optional[str] = None
+    file_path_2: Optional[str] = None
 
     subject_id: Optional[int] = None
     university_id: Optional[int] = None
