@@ -80,6 +80,16 @@ def require_role(roles: list[str]):
 
     return checker
 
+# ---------- ADMIN ONLY ----------
+def get_current_admin(current_user=Depends(get_current_user)):
+    if current_user.role not in ["owner", "superadmin"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied"
+        )
+    return current_user
+
+
 
 # ✅ ВСЕ РОЛИ
 require_user = require_role(["user", "owner", "superadmin"])
