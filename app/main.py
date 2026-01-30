@@ -6,7 +6,6 @@ from app.routers import (
     subject, literature, stats, general_stats,
     statistics, admin, news,
 )
-# from app.routers.analysis import (library_fund, literature_reports, library_excel)
 
 app = FastAPI(title="BooksEdu API")
 
@@ -42,9 +41,7 @@ app.include_router(stats.router)
 app.include_router(statistics.router)
 app.include_router(general_stats.router)
 app.include_router(news.router)
-# app.include_router((library_fund.router))
-# app.include_router(literature_reports.router)
-# app.include_router(library_excel.router)
+
 
 
 # ===================== Startup =====================

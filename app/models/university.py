@@ -18,9 +18,3 @@ class University(Base):
     directions = relationship("Direction", back_populates="university", cascade="all, delete-orphan")
     kafedras = relationship("Kafedra", back_populates="university", cascade="all, delete-orphan")
     news = relationship("News", back_populates="university", cascade="all, delete-orphan")
-
-    literature_reports = relationship(
-        "LiteratureReport",
-        back_populates="university",
-        cascade="all, delete-orphan"
-    )
