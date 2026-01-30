@@ -39,4 +39,4 @@ class LiteratureReport(Base):
     daydjest_nomda = Column(Integer, default=0)
     daydjest_nusxada = Column(Integer, default=0)
 
-    university = relationship("University", back_populates="literature")
+    university = relationship("University", back_populates="literature_reports")
