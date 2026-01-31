@@ -9,8 +9,6 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: mydb
-    ports:
-      - "5432:5432"
     volumes:
       - pg_data:/var/lib/postgresql/data
     healthcheck:
@@ -20,9 +18,7 @@ services:
       retries: 5
 
   api:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    build: .
     container_name: fastapi_app
     restart: always
     depends_on:
@@ -33,11 +29,10 @@ services:
     ports:
       - "8000:8000"
     command: >
-      sh -c "alembic upgrade head &&
-             uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
-    volumes:
-      - .:/app
-    working_dir: /app
+      sh -c "
+      alembic upgrade head &&
+      uvicorn app.main:app --host 0.0.0.0 --port 8000
+      "
 
 volumes:
   pg_data:

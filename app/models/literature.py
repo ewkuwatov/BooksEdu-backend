@@ -20,6 +20,7 @@ class Literature(Base):
     usage_status = Column(String, nullable=False)
     image = Column(String, nullable=True)
     file_path = Column(String, nullable=True)
+    file_path_2 = Column(String, nullable=True)
 
     subject_id = Column(Integer, ForeignKey("subjects.id", ondelete="CASCADE"))
     subject = relationship("Subject", back_populates="literature")

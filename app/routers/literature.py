@@ -1,219 +1,169 @@
-# app/routers/literature.py
-from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status
+import os
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from fastapi.responses import FileResponse
-import os
-from fastapi import UploadFile, File, Form
-
 
 from app.db.session import get_db
 from app.models.literature import Literature
-from app.schemas.enums import FontTypeEnum, LanguageEnum, ConditionEnum, UsageStatusEnum
-from app.schemas.literature import LiteratureCreate, LiteratureUpdate, LiteratureOut
+from app.schemas.literature import (
+    LiteratureCreate,
+    LiteratureUpdate,
+    LiteratureOut,
+)
 from app.dependencies import get_current_user
 
-router = APIRouter(prefix="/literatures", tags=["literatures"])
+router = APIRouter(prefix="/literatures", tags=["Literature"])
 
-@router.get("/", response_model=List[LiteratureOut])
-async def get_literatures(db: AsyncSession = Depends(get_db)):
+UPLOAD_DIR = "uploads/literatures"
+
+
+# ---------- GET ----------
+@router.get("/", response_model=list[LiteratureOut])
+async def get_all(db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Literature))
     return result.scalars().all()
 
-# ---- Создание ---- (owner / superadmin)
+
+# ---------- CREATE ----------
 @router.post("/", response_model=LiteratureOut)
 async def create_literature(
     data: LiteratureCreate,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_user)
+    current_user=Depends(get_current_user),
 ):
-    literature_data = data.model_dump()
-
-    if current_user.role == "superadmin":
-        literature_data["university_id"] = current_user.university_id
-    elif current_user.role == "owner":
-        if "university_id" not in literature_data or not literature_data["university_id"]:
-            raise HTTPException(status_code=400, detail="university_id is required for owner")
-    else:
-        raise HTTPException(status_code=403, detail="Not allowed")
-
-    literature = Literature(**literature_data)
+    literature = Literature(**data.model_dump())
     db.add(literature)
     await db.commit()
     await db.refresh(literature)
     return literature
 
 
+# ---------- CREATE WITH FILES ----------
+@router.post("/upload", response_model=LiteratureOut)
+async def create_with_files(
+    title: str = Form(...),
+    kind: str = Form(...),
+    language: str = Form(...),
+    font_type: str = Form(...),
+    condition: str = Form(...),
+    usage_status: str = Form(...),
+    year: int = Form(...),
+    subject_id: int = Form(...),
+    university_id: int = Form(...),
+    author: str = Form(None),
+    publisher: str = Form(None),
+    printed_count: int = Form(None),
+    file: UploadFile = File(None),
+    file2: UploadFile = File(None),
+    db: AsyncSession = Depends(get_db),
+):
+    os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+    file_path = None
+    file_path_2 = None
+
+    if file:
+        file_path = f"{UPLOAD_DIR}/{file.filename}"
+        with open(file_path, "wb") as f:
+            f.write(await file.read())
+
+    if file2:
+        file_path_2 = f"{UPLOAD_DIR}/{file2.filename}"
+        with open(file_path_2, "wb") as f:
+            f.write(await file2.read())
+
+    literature = Literature(
+        title=title,
+        kind=kind,
+        language=language,
+        font_type=font_type,
+        condition=condition,
+        usage_status=usage_status,
+        year=year,
+        subject_id=subject_id,
+        university_id=university_id,
+        author=author,
+        publisher=publisher,
+        printed_count=printed_count,
+        file_path=file_path,
+        file_path_2=file_path_2,
+    )
+
+    db.add(literature)
+    await db.commit()
+    await db.refresh(literature)
+    return literature
 
 
-# ---- Обновление ---- (owner / superadmin)
+# ---------- UPDATE ----------
 @router.put("/{literature_id}", response_model=LiteratureOut)
 async def update_literature(
     literature_id: int,
     data: LiteratureUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_user)
 ):
     literature = await db.get(Literature, literature_id)
     if not literature:
-        raise HTTPException(status_code=404, detail="Literature not found")
+        raise HTTPException(404, "Not found")
 
-    if current_user.role == "superadmin" and literature.university_id != current_user.university_id:
-        raise HTTPException(status_code=403, detail="Not your university")
-    if current_user.role not in ("owner", "superadmin"):
-        raise HTTPException(status_code=403, detail="Not allowed")
-
-    for field, value in data.model_dump(exclude_unset=True).items():
-        setattr(literature, field, value)
+    for k, v in data.model_dump(exclude_unset=True).items():
+        setattr(literature, k, v)
 
     await db.commit()
     await db.refresh(literature)
     return literature
 
 
-# ---- Удаление ---- (owner / superadmin)
-@router.delete("/{literature_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_literature(
-    literature_id: int,
-    db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_user)
-):
-    literature = await db.get(Literature, literature_id)
-    if not literature:
-        raise HTTPException(status_code=404, detail="Literature not found")
-
-    if current_user.role == "superadmin" and literature.university_id != current_user.university_id:
-        raise HTTPException(status_code=403, detail="Not your university")
-    if current_user.role not in ("owner", "superadmin"):
-        raise HTTPException(status_code=403, detail="Not allowed")
-
-    await db.delete(literature)
-    await db.commit()
-    return None
-
-
-# ---- Загрузка файла ----
-@router.post("/upload", response_model=LiteratureOut)
-async def create_literature_with_file(
-    title: str = Form(...),
-    kind: str = Form(...),
-    author: str = Form(None),
-    publisher: str = Form(None),
-    language: LanguageEnum = Form(...),
-    font_type: FontTypeEnum = Form(...),
-    year: int = Form(...),
-    printed_count: int = Form(None),
-    condition: ConditionEnum = Form(...),
-    usage_status: UsageStatusEnum = Form(...),
-    subject_id: int = Form(...),
-    university_id: int = Form(...),
-    file: UploadFile = File(None),
-    db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_user)
-):
-    file_path = None
-    if file:
-        # Абсолютный путь
-        upload_dir = os.path.join(os.getcwd(), "uploads/literatures")
-        os.makedirs(upload_dir, exist_ok=True)
-        file_path = os.path.join(upload_dir, file.filename)
-
-        with open(file_path, "wb") as f:
-            f.write(await file.read())
-
-    literature = Literature(
-        title=title,
-        kind=kind,
-        author=author,
-        publisher=publisher,
-        language=language,
-        font_type=font_type,
-        year=year,
-        printed_count=printed_count,
-        condition=condition,
-        usage_status=usage_status,
-        subject_id=subject_id,
-        university_id=university_id,
-        file_path=file_path
-    )
-    db.add(literature)
-    await db.commit()
-    await db.refresh(literature)
-    return literature
-
-# ---- Скачивание файла ----
-@router.get("/{literature_id}/download")
-async def download_literature_file(
-    literature_id: int,
-    db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_user)
-):
-    literature = await db.get(Literature, literature_id)
-    if not literature or not literature.file_path:
-        raise HTTPException(status_code=404, detail="File not found")
-
-    if not os.path.exists(literature.file_path):
-        raise HTTPException(status_code=404, detail="File missing on server")
-
-    # Отдаём файл как FileResponse
-    filename = os.path.basename(literature.file_path)
-    return FileResponse(path=literature.file_path, filename=filename)
-
-# ---- Обновление с файлом ----
+# ---------- UPDATE FILES ----------
 @router.put("/upload/{literature_id}", response_model=LiteratureOut)
-async def update_literature_with_file(
+async def update_files(
     literature_id: int,
-    title: str = Form(...),
-    kind: str = Form(...),
-    author: str = Form(None),
-    publisher: str = Form(None),
-    language: LanguageEnum = Form(...),
-    font_type: FontTypeEnum = Form(...),
-    year: int = Form(...),
-    printed_count: int = Form(None),
-    condition: ConditionEnum = Form(...),
-    usage_status: UsageStatusEnum = Form(...),
-    subject_id: int = Form(...),
-    university_id: int = Form(...),
     file: UploadFile = File(None),
+    file2: UploadFile = File(None),
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_user)
 ):
     literature = await db.get(Literature, literature_id)
     if not literature:
-        raise HTTPException(status_code=404, detail="Literature not found")
+        raise HTTPException(404, "Not found")
 
-    if current_user.role == "superadmin" and literature.university_id != current_user.university_id:
-        raise HTTPException(status_code=403, detail="Not your university")
-    if current_user.role not in ("owner", "superadmin"):
-        raise HTTPException(status_code=403, detail="Not allowed")
+    os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-    # если пришёл новый файл — перезаписываем
     if file:
-        upload_dir = os.path.join(os.getcwd(), "uploads/literatures")
-        os.makedirs(upload_dir, exist_ok=True)
-        file_path = os.path.join(upload_dir, file.filename)
-
-        with open(file_path, "wb") as f:
+        path = f"{UPLOAD_DIR}/{file.filename}"
+        with open(path, "wb") as f:
             f.write(await file.read())
+        literature.file_path = path
 
-        literature.file_path = file_path
-
-    # обновляем остальные поля
-    literature.title = title
-    literature.kind = kind
-    literature.author = author
-    literature.publisher = publisher
-    literature.language = language
-    literature.font_type = font_type
-    literature.year = year
-    literature.printed_count = printed_count
-    literature.condition = condition
-    literature.usage_status = usage_status
-    literature.subject_id = subject_id
-    literature.university_id = university_id
+    if file2:
+        path = f"{UPLOAD_DIR}/{file2.filename}"
+        with open(path, "wb") as f:
+            f.write(await file2.read())
+        literature.file_path_2 = path
 
     await db.commit()
     await db.refresh(literature)
     return literature
+
+
+# ---------- DOWNLOAD ----------
+@router.get("/{literature_id}/download/{file_number}")
+async def download_file(
+    literature_id: int,
+    file_number: int,
+    db: AsyncSession = Depends(get_db),
+):
+    literature = await db.get(Literature, literature_id)
+    if not literature:
+        raise HTTPException(404, "Not found")
+
+    path = (
+        literature.file_path
+        if file_number == 1
+        else literature.file_path_2
+    )
+
+    if not path or not os.path.exists(path):
+        raise HTTPException(404, "File not found")
+
+    return FileResponse(path)
