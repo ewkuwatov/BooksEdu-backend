@@ -83,15 +83,15 @@ def render_university(ws, uni, start_row=1):
     top_headers = [
         "№",
         "Мutaxassislik shifri va nomi",
-        "Talabalar soni",
-        "Fan nomi",
-        "Adabiyot nomi",
-        "Turi",
-        "Muallif",
-        "Nashriyot",
-        "Til",
-        "Yozuvi",
-        "Yili",
+        "Talabalar soni (kurslar bo'yicha)",
+        "O‘quv rejadagi fan nomi",
+        "Fan dasturiga kiritilgan o‘quv adabiyotlari nomi",
+        "O‘quv adabiyot turi",
+        "Muallif(lar) F.I.Sh",
+        "Nashriyoti",
+        "Adabiyot tili",
+        "Yozuvi (Kiril yoki lotin)",
+        "Nashr etilgan yili",
     ]
 
     for col, text in enumerate(top_headers, 1):
@@ -101,7 +101,7 @@ def render_university(ws, uni, start_row=1):
         cell.alignment = CENTER
         cell.border = border
 
-    ws.cell(row, 14).value = "Ta’minlanganlik %"
+    ws.cell(row, 14).value = "Har bir fan bo‘yicha ta’minlanganlik (% da)"
     ws.cell(row, 14).font = header_font
     ws.cell(row, 14).fill = header_fill
     ws.cell(row, 14).alignment = CENTER
@@ -109,7 +109,7 @@ def render_university(ws, uni, start_row=1):
 
     row += 1
 
-    sub_headers = [""] * 11 + ["Elektron", "Bosma", ""]
+    sub_headers = [""] * 11 + ["Elektron", "Bosma (nusxada ko‘rsatilishi lozim)", ""]
 
     for col, text in enumerate(sub_headers, 1):
         cell = ws.cell(row, col, text)
